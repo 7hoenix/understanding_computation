@@ -1,31 +1,37 @@
 class Example
   def self.run
     Machine.new(
-      Add.new(Variable.new(:x), Variable.new(:y)),
-      { x: Number.new(3), y: Number.new(4) }
+      If.new(
+        Variable.new(:x),
+        Assign.new(:y, Number.new(1)),
+        Assign.new(:y, Number.new(2))),
+      { x: Boolean.new(false) }
     ).run
   end
 end
 
 class Reset
   def self.run
-    [:Machine, :Number, :Add, :Multiply, :Boolean, :LessThan, :GreaterThan, :Variable].each do |klass|
+    [:Machine, :Number, :Add, :Multiply, :Boolean, :LessThan, :GreaterThan, :Variable,
+     :DoNothing, :Assign, :If].each do |klass|
       Object.send(:remove_const, klass)
     end
+    load "./parsers.rb"
   end
 end
 
-class Machine < Struct.new(:expression, :environment)
+class Machine < Struct.new(:statement, :environment)
   def step
-    self.expression = expression.reduce(environment)
+    self.statement, self.environment = statement.reduce(environment)
   end
 
   def run
-    while expression.reducible?
-      puts expression
+    while statement.reducible?
+      puts "#{statement}, #{environment}"
       step
     end
-    puts expression
+
+    puts "#{statement}, #{environment}"
   end
 end
 
@@ -168,5 +174,72 @@ class Variable < Struct.new(:name)
 
   def reduce(environment)
     environment[name]
+  end
+end
+
+class DoNothing
+  def to_s
+    'do-nothing'
+  end
+
+  def inspect
+    "<<#{self}>>"
+  end
+
+  def ==(other_statement)
+    other_statement.instance_of?(DoNothing)
+  end
+
+  def reducible?
+    false
+  end
+end
+
+class Assign < Struct.new(:name, :expression)
+  def to_s
+    "#{name} = #{expression}"
+  end
+
+  def inspect
+    "<<#{self}>>"
+  end
+
+  def reducible?
+    true
+  end
+
+  def reduce(environment)
+    if expression.reducible?
+      [Assign.new(name, expression.reduce(environment)), environment]
+    else
+      [DoNothing.new, environment.merge({ name => expression })]
+    end
+  end
+end
+
+class If < Struct.new(:condition, :consequence, :alternative)
+  def to_s
+    "if (#{condition}) { #{consequence} } else { #{alternative} }"
+  end
+
+  def inspect
+    "<<#{self}>>"
+  end
+
+  def reducible?
+    true
+  end
+
+  def reduce(environment)
+    if condition.reducible?
+      [If.new(condition.reduce(environment), consequence, alternative), environment]
+    else
+      case condition
+      when Boolean.new(true)
+        [consequence, environment]
+      when Boolean.new(false)
+        [alternative, environment]
+      end
+    end
   end
 end
