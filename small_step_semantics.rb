@@ -17,7 +17,7 @@ class Reset
      :DoNothing, :Assign, :If, :Sequence, :While].each do |klass|
       Object.send(:remove_const, klass)
     end
-    load "./parsers.rb"
+    load "./small_step_semantics.rb"
     Example.run
   end
 end
