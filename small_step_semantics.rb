@@ -1,22 +1,24 @@
 class Example
   def self.run
     Machine.new(
-      If.new(
-        Variable.new(:x),
-        Assign.new(:y, Number.new(1)),
-        Assign.new(:y, Number.new(2))),
-      { x: Boolean.new(false) }
+      While.new(
+        LessThan.new(Variable.new(:x), Number.new(5)),
+        Assign.new(:x, Multiply.new(Variable.new(:x), Number.new(3)))
+      ),
+      { x: Number.new(1) }
     ).run
   end
 end
 
 class Reset
   def self.run
+    system "clear"
     [:Machine, :Number, :Add, :Multiply, :Boolean, :LessThan, :GreaterThan, :Variable,
-     :DoNothing, :Assign, :If].each do |klass|
+     :DoNothing, :Assign, :If, :Sequence, :While].each do |klass|
       Object.send(:remove_const, klass)
     end
     load "./parsers.rb"
+    Example.run
   end
 end
 
@@ -241,5 +243,47 @@ class If < Struct.new(:condition, :consequence, :alternative)
         [alternative, environment]
       end
     end
+  end
+end
+
+class Sequence < Struct.new(:first, :second)
+  def to_s
+    "#{first}; #{second}"
+  end
+
+  def inspect
+    "<<#{self}>>"
+  end
+
+  def reducible?
+    true
+  end
+
+  def reduce(environment)
+    case first
+    when DoNothing.new
+      [second, environment]
+    else
+      reduced_first, reduced_environment = first.reduce(environment)
+      [Sequence.new(reduced_first, second), reduced_environment]
+    end
+  end
+end
+
+class While < Struct.new(:condition, :body)
+  def to_s
+    "while (#{condition}) { #{body} }"
+  end
+
+  def inspect
+    "<<#{self}>>"
+  end
+
+  def reducible?
+    true
+  end
+
+  def reduce(environment)
+    [If.new(condition, Sequence.new(body, self), DoNothing.new), environment]
   end
 end
